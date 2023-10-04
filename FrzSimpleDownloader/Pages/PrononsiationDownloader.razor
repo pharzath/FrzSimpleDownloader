@@ -42,8 +42,32 @@
 </MudCard>
 
 @code {
-	string Accent = "us";
-	string Sex = "m";
+
+	private string _accent = "us";
+	string Accent
+	{
+		get => _accent;
+		set
+		{
+			_accent = value;
+			fileCounter = $"WordsDownloadCounter-{Accent}-{Sex}.txt";
+			url = $"https://cdn-wordup.com/audio/{Accent}-{Sex}/{{0}}.mp3";
+			NewMethod();
+		}
+	}
+
+	private string _sex = "m";
+	string Sex
+	{
+		get => _sex;
+		set
+		{
+			_sex = value;
+			fileCounter = $"WordsDownloadCounter-{Accent}-{Sex}.txt";
+			url = $"https://cdn-wordup.com/audio/{Accent}-{Sex}/{{0}}.mp3";
+			NewMethod();
+		}
+	}
 
 	MudProgressLinear? progress;
 	[Inject] ArvanService Arvan { get; set; }
@@ -55,30 +79,38 @@
 
 	string[] words;
 	int counter = 0;
+
+	string url;
+	string fileCounter;
+
 	protected override async Task OnInitializedAsync()
 	{
 		using HttpClient httpClient = new HttpClient();
-	// Download the text file
+		// Download the text file
 		var textFileContent = await httpClient.GetStringAsync(textFileUrl);
-
-	// Split the text file content into words
 		words = textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-		var fileCounter = $"WordsDownloadCounter-{Accent}-{Sex}.txt";
-		if (File.Exists(fileCounter))
-		{
-			var count = await File.ReadAllTextAsync(fileCounter);
-			counter = Convert.ToInt32(count);
-		}
-		Title = $"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length) ,0)})%";
+
+		NewMethod();
 
 		await base.OnInitializedAsync();
+	}
+
+	private void NewMethod()
+	{
+	// Split the text file content into words
+		if (File.Exists(fileCounter))
+		{
+			var count = File.ReadAllText(fileCounter);
+			counter = Convert.ToInt32(count);
+		}
+
+		Title =
+			$"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length), 0)})%";
 	}
 
 
 	private async Task StartDownlaodClick()
 	{
-		var url = $"https://cdn-wordup.com/audio/{Accent}-{Sex}/{{0}}.mp3";
-		var fileCounter = $"WordsDownloadCounter-{Accent}-{Sex}.txt";
 		using var httpClient = new HttpClient();
 		if (progress != null) 
 			progress.Max = words.Length;
