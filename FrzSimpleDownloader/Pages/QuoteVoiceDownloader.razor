@@ -7,7 +7,11 @@
 		Downlaod Pronunsiations
 	</MudCardHeader>
 	<MudCardContent>
-
+		<MudSelect @bind-Value="Accent" Label="Select Accesnt">
+			<MudSelectItem Value="@("us")">American</MudSelectItem>
+			<MudSelectItem Value="@("gb")">British</MudSelectItem>
+		</MudSelect>
+		<MudNumericField @bind-Value="Section" Label="File Section" FullWidth="false"></MudNumericField> Of 25
 		<MudStack Spacing="2">
 			<MudProgressLinear @ref="progress" Min="0" Striped="true" Color="Color.Tertiary" Size="Size.Large"></MudProgressLinear>
 			<MudText Typo="Typo.body1">
@@ -26,6 +30,16 @@
 </MudCard>
 
 @code {
+	private string _accent = "us";
+	string Accent
+	{
+		get => _accent;
+		set
+		{
+			_accent = value;
+			PopulateTotals(_accent, Section);
+		}
+	}
 
 	MudProgressLinear? progress;
 	[Inject] ArvanService Arvan { get; set; }
@@ -33,80 +47,128 @@
 	string Title;
 	string Msg;
 	// URL of the text file containing video IDs
-	string textFileUrl = "https://vocavers.cdn-havesh.ir/Words-v19.txt";
-	string url = "https://word-images.cdn-wordup.com/opt/{0}/all.gz";
+	//string textFileUrl = "https://vocavers.cdn-havesh.ir/Words-v19.txt";
+	string url;
 
-	string[] words;
+	string[] quotes;
 	int counter = 0;
 
-	string fileCounter = "WordDefDownloadCounter.txt";
+	string fileCounter;
+	string fileCounterName = "Quote_{0}_{1}_Counter.txt";
+	private int _section = 1;
 
 	protected override async Task OnInitializedAsync()
 	{
-		using HttpClient httpClient = new HttpClient();
-		// Download the text file
-		var textFileContent = await httpClient.GetStringAsync(textFileUrl);
-		words = textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-
-		NewMethod();
+		quotes = await GetQuotesBySection(Section);
+		progress.Max = quotes.Length;
+		PopulateTotals(Accent, Section);
 
 		await base.OnInitializedAsync();
 	}
 
-	private void NewMethod()
+	private async Task<string[]> GetQuotesBySection(int section)
 	{
-		// Split the text file content into words
+		using HttpClient httpClient = new HttpClient();
+		// Download the text file
+		var sectionUrl = $"https://vocavers.s3.ir-thr-at1.arvanstorage.ir/data/QuotesText_{section}.txt";
+		var textFileContent = await httpClient.GetStringAsync(sectionUrl);
+
+		return textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+	}
+
+	private void PopulateTotals(string accent, int section)
+	{
+		url = $"https://speech.cdn-wordup.com/{accent}/{{0}}.mp3";
+		fileCounter = fileCounterName.FormatWith(accent , section);
+		// Split the text file content into quotes
 		if (File.Exists(fileCounter))
 		{
 			var count = File.ReadAllText(fileCounter);
 			counter = Convert.ToInt32(count);
 		}
+		else
+		{
+			counter = 0;
+		}
+		progress.Value = counter;
 
 		Title =
-			$"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length), 0)})%";
+			$"Total Downlaod :  {counter} of {quotes.Length} ({Math.Round((double)((counter * 100) / quotes.Length), 0)})%";
 	}
 
+	string GetQuoteKey(string quote)
+	{
+		quote = quote.OrEmpty().Replace("&apos;", "'").Remove("\r").Replace("\n", "\r\n");
+		var key = quote.CreateSHA1Hash() + quote.CreateMD5Hash();
+		key = new string(key.Where(v => v.IsLetterOrDigit()).ToArray());
+		return key;
+	}
 
 	private async Task StartDownlaodClick()
 	{
 		using var httpClient = new HttpClient();
 		if (progress != null)
-			progress.Max = words.Length;
-
-		foreach (var word in words.Skip(counter))
+			progress.Max = quotes.Length;
+		for (var i = Section; i <= 25; i++)
 		{
-			var voiceUrl = string.Format(url, word.ToLowerOrEmpty());
-			// Download and save the video file
-			byte[] voiceBytes;
-			try
+			if (i != Section)
+				quotes = await GetQuotesBySection(i);
+			progress.Max = quotes.Length;
+			foreach (var quote in quotes.Skip(counter))
 			{
-				voiceBytes = await httpClient.GetByteArrayAsync(voiceUrl);
+				var key = GetQuoteKey(quote);
+				var quoteLink = string.Format(url, key);
 
+
+				// Download and save the quote voice file by Accent
+				byte[] voiceBytes;
+				try
+				{
+					voiceBytes = await httpClient.GetByteArrayAsync(quoteLink);
+
+				}
+				catch (Exception e)
+				{
+					var errFile = $"error-Quotes.txt";
+					await File.AppendAllLinesAsync(errFile, new[] { quote });
+
+					Console.WriteLine("************ " + e.Message);
+					continue;
+				}
+				var voiceFileName = $"speach/{key}.mp3";
+				Console.WriteLine($"Downloaded {voiceFileName}");
+
+				//await File.WriteAllBytesAsync(videoFileName, videoBytes);
+				Arvan.UploadByteArrayToS3(voiceBytes, ArvanService.BUCKET_NAME, voiceFileName);
+				Console.WriteLine($"Uploaded {voiceFileName}");
+				progress.Value = ++counter;
+
+				Title = $"Total Downlaod :  {counter} of {this.quotes.Length} ({Math.Round((double)((counter * 100) / this.quotes.Length), 0)})%";
+				Msg = "Downloaded : " + voiceFileName;
+
+				StateHasChanged();
+
+				await File.WriteAllTextAsync(fileCounter, counter.ToString());
+				await Task.Delay(1);
 			}
-			catch (Exception e)
+			counter = 0;
+		}
+	}
+
+	public int Section
+	{
+		get => _section;
+		set
+		{
+			_section = value;
+			InvokeAsync(async () =>
 			{
-				var errFile = $"error-WordDef.txt";
-				await File.AppendAllLinesAsync(errFile, new[] { word });
-
-				Console.WriteLine("************ " + e.Message);
-				continue;
-			}
-			var voiceFileName = $"opt/{word.ToLowerOrEmpty()}/all.gz";
-			Console.WriteLine($"Downloaded {voiceFileName}");
-
-			//await File.WriteAllBytesAsync(videoFileName, videoBytes);
-			Arvan.UploadByteArrayToS3(voiceBytes, ArvanService.BUCKET_NAME, voiceFileName);
-			Console.WriteLine($"Uploaded {voiceFileName}");
-			progress.Value = ++counter;
-
-			Title = $"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length), 0)})%";
-			Msg = "Downloaded : " + voiceFileName;
-
-			StateHasChanged();
-
-			await File.WriteAllTextAsync(fileCounter, counter.ToString());
-			await Task.Delay(1);
-
+				quotes = await GetQuotesBySection(_section);
+				PopulateTotals(Accent , _section);
+				
+				StateHasChanged();
+			});
+			
 
 		}
 	}
