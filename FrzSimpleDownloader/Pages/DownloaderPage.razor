@@ -44,6 +44,34 @@
 	// URL of the text file containing video IDs
 	string textFileUrl = "https://vocavers.cdn-havesh.ir/VideoIdsToDownload.txt";
 
+	string[] lines;
+	int counter = 0;
+	protected override async Task OnInitializedAsync()
+	{
+		using HttpClient httpClient = new HttpClient();
+		// Download the text file
+		var textFileContent = await httpClient.GetStringAsync(textFileUrl);
+
+		// Split the text file content into lines
+		lines = textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+		if (File.Exists("VideoDownloadCounter.txt"))
+		{
+			var count = await File.ReadAllTextAsync("VideoDownloadCounter.txt");
+			counter = Convert.ToInt32(count);
+		}
+		Title = $"Total Downlaod :  {counter} of {lines.Length} ({Math.Round((double)((counter * 100) / lines.Length) ,0)})%";
+
+		await base.OnInitializedAsync();
+	}
+
+	protected override void OnAfterRender(bool firstRender)
+	{
+		if(firstRender && progress != null)
+			progress.Value = counter;
+
+		base.OnAfterRender(firstRender);
+	}
+
 	private async Task GetDownlaodeList()
 	{
 
@@ -52,20 +80,10 @@
 		try
 		{
 			using HttpClient httpClient = new HttpClient();
-			// Download the text file
-			var textFileContent = await httpClient.GetStringAsync(textFileUrl);
 
-			// Split the text file content into lines
-			var lines = textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 			//var lines = new[] { "166228", "149065" };
 			progress.Max = lines.Length;
 			// Download video files for each ID
-			var counter = 0;
-			if (File.Exists("VideoDownloadCounter.txt"))
-			{
-				var count = await File.ReadAllTextAsync("VideoDownloadCounter.txt");
-				counter = Convert.ToInt32(count);
-			}
 
 			foreach (var line in lines.Skip(counter))
 			{
