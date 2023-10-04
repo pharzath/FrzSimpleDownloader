@@ -1,18 +1,39 @@
 ﻿@page "/Downloader"
 @using FrzSimpleDownloader.Services
 
-<MudButton Size="Size.Medium" Color="Color.Warning" OnClick="GetDownlaodeList">
-	Get Video Download List
-</MudButton>
+<MudCard Elevation="2" Class="m-4">
+	<MudCardHeader>
+		Download Video Content Files from Video list on :
+		<MudText Typo="Typo.caption">
+			@textFileUrl
+		</MudText>
+	</MudCardHeader>
+	<MudCardContent>
+		<MudText>
+			Downlods will be uploaded to :
+		</MudText>
+		<MudText>
+			"https://s3.ir-thr-at1.arvanstorage.ir/mp4"
+		</MudText>
+		<MudProgressLinear @ref="progress" Min="0" Size="Size.Large" Color="Color.Warning" Striped="true"></MudProgressLinear>
+		<MudText Typo="Typo.body1">
+			@Title
+		</MudText>
+		<MudText Typo="Typo.body2" Color="Color.Primary">
+			@Msg
+		</MudText>
+
+	</MudCardContent>
+	<MudCardActions>
+		<MudButton Size="Size.Medium" Color="Color.Warning" OnClick="GetDownlaodeList">
+			Get Videos From List 
+		</MudButton>
+
+	</MudCardActions>
+</MudCard>
+
 
 <MudPaper Elevation="1">
-	<MudProgressLinear @ref="progress" Min="0" Size="Size.Large"></MudProgressLinear>
-	<MudText Typo="Typo.body1">
-		@Title
-	</MudText>
-	<MudText Typo="Typo.body2" Color="Color.Primary">
-		@Msg
-	</MudText>
 
 </MudPaper>
 @code {
@@ -20,11 +41,11 @@
 	[Inject] ArvanService Arvan { get; set; }
 	string Title;
 	string Msg;
+	// URL of the text file containing video IDs
+	string textFileUrl = "https://vocavers.cdn-havesh.ir/VideoIdsToDownload.txt";
 
 	private async Task GetDownlaodeList()
 	{
-		// URL of the text file containing video IDs
-		var textFileUrl = "https://vocavers.cdn-havesh.ir/VideoIdsToDownload.txt";
 
 		// URL pattern for video files
 		var videoUrlPattern = "https://v.cdn-wordup.com/mp4/{0}.mp4";
@@ -69,7 +90,7 @@
 				StateHasChanged();
 
 				await File.WriteAllTextAsync("VideoDownloadCounter.txt",counter.ToString());
-				await Task.Delay(10);
+				await Task.Delay(1);
 			}
 
 			Console.WriteLine("Download completed.");
