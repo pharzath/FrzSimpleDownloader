@@ -21,7 +21,7 @@
 				</MudSelect>
 			</MudItem>
 		</MudGrid>
-		
+
 		<MudDivider DividerType="DividerType.FullWidth"></MudDivider>
 
 		<MudStack Spacing="2">
@@ -97,7 +97,7 @@
 
 	private void NewMethod()
 	{
-	// Split the text file content into words
+		// Split the text file content into words
 		if (File.Exists(fileCounter))
 		{
 			var count = File.ReadAllText(fileCounter);
@@ -112,31 +112,44 @@
 	private async Task StartDownlaodClick()
 	{
 		using var httpClient = new HttpClient();
-		if (progress != null) 
+		if (progress != null)
 			progress.Max = words.Length;
 
 		foreach (var word in words.Skip(counter))
 		{
 			var voiceUrl = string.Format(url, word.ToLowerOrEmpty());
-	// Download and save the video file
-			var voiceBytes = await httpClient.GetByteArrayAsync(voiceUrl);
+			// Download and save the video file
+			byte[] voiceBytes;
+			try
+			{
+				voiceBytes = await httpClient.GetByteArrayAsync(voiceUrl);
+
+			}
+			catch (Exception e)
+			{
+				var errFile = $"error-{Accent}-{Sex}.txt";
+				await File.AppendAllLinesAsync(errFile, new[] { word });
+
+				Console.WriteLine("************ " + e.Message);
+				continue;
+			}
 			var voiceFileName = $"audio/{Accent}-{Sex}/{word.ToLowerOrEmpty()}.mp3";
 			Console.WriteLine($"Downloaded {voiceFileName}");
 
-	//await File.WriteAllBytesAsync(videoFileName, videoBytes);
-			Arvan.UploadByteArrayToS3(voiceBytes , ArvanService.BUCKET_NAME , voiceFileName);
+			//await File.WriteAllBytesAsync(videoFileName, videoBytes);
+			Arvan.UploadByteArrayToS3(voiceBytes, ArvanService.BUCKET_NAME, voiceFileName);
 			Console.WriteLine($"Uploaded {voiceFileName}");
 			progress.Value = ++counter;
-				
-			Title = $"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length) ,0)})%";
+
+			Title = $"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length), 0)})%";
 			Msg = "Downloaded : " + voiceFileName;
 
 			StateHasChanged();
 
-			await File.WriteAllTextAsync(fileCounter,counter.ToString());
+			await File.WriteAllTextAsync(fileCounter, counter.ToString());
 			await Task.Delay(1);
 
-			
+
 		}
 	}
 

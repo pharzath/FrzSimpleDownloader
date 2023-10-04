@@ -93,7 +93,21 @@
 				var videoUrl = string.Format(videoUrlPattern, videoId);
 
 				// Download and save the video file
-				var videoBytes = await httpClient.GetByteArrayAsync(videoUrl);
+				byte[] videoBytes;
+
+				try
+				{
+					videoBytes = await httpClient.GetByteArrayAsync(videoUrl);
+				}
+				catch (Exception e)
+				{
+					var errFile = $"error-VIDEO.txt";
+					await File.AppendAllLinesAsync(errFile, new[] { line });
+
+					Console.WriteLine("************ " + e.Message);
+					continue;
+
+				}
 				var videoFileName = $"mp4/{videoId}.mp4";
 				Console.WriteLine($"Downloaded {videoFileName}");
 
