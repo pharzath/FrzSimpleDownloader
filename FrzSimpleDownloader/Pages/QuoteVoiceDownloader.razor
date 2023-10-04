@@ -1,0 +1,114 @@
+﻿@page "/QuoteVoiceDownloader"
+@using FrzSimpleDownloader.Services
+@using Olive
+
+<MudCard Elevation="2">
+	<MudCardHeader>
+		Downlaod Pronunsiations
+	</MudCardHeader>
+	<MudCardContent>
+
+		<MudStack Spacing="2">
+			<MudProgressLinear @ref="progress" Min="0" Striped="true" Color="Color.Tertiary" Size="Size.Large"></MudProgressLinear>
+			<MudText Typo="Typo.body1">
+				@Title
+			</MudText>
+			<MudText>
+				@Msg
+			</MudText>
+		</MudStack>
+	</MudCardContent>
+	<MudCardActions>
+		<MudButton Size="Size.Large" Color="Color.Error" OnClick="StartDownlaodClick">
+			Download Quote Voices
+		</MudButton>
+	</MudCardActions>
+</MudCard>
+
+@code {
+
+	MudProgressLinear? progress;
+	[Inject] ArvanService Arvan { get; set; }
+
+	string Title;
+	string Msg;
+	// URL of the text file containing video IDs
+	string textFileUrl = "https://vocavers.cdn-havesh.ir/Words-v19.txt";
+	string url = "https://word-images.cdn-wordup.com/opt/{0}/all.gz";
+
+	string[] words;
+	int counter = 0;
+
+	string fileCounter = "WordDefDownloadCounter.txt";
+
+	protected override async Task OnInitializedAsync()
+	{
+		using HttpClient httpClient = new HttpClient();
+		// Download the text file
+		var textFileContent = await httpClient.GetStringAsync(textFileUrl);
+		words = textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+		NewMethod();
+
+		await base.OnInitializedAsync();
+	}
+
+	private void NewMethod()
+	{
+		// Split the text file content into words
+		if (File.Exists(fileCounter))
+		{
+			var count = File.ReadAllText(fileCounter);
+			counter = Convert.ToInt32(count);
+		}
+
+		Title =
+			$"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length), 0)})%";
+	}
+
+
+	private async Task StartDownlaodClick()
+	{
+		using var httpClient = new HttpClient();
+		if (progress != null)
+			progress.Max = words.Length;
+
+		foreach (var word in words.Skip(counter))
+		{
+			var voiceUrl = string.Format(url, word.ToLowerOrEmpty());
+			// Download and save the video file
+			byte[] voiceBytes;
+			try
+			{
+				voiceBytes = await httpClient.GetByteArrayAsync(voiceUrl);
+
+			}
+			catch (Exception e)
+			{
+				var errFile = $"error-WordDef.txt";
+				await File.AppendAllLinesAsync(errFile, new[] { word });
+
+				Console.WriteLine("************ " + e.Message);
+				continue;
+			}
+			var voiceFileName = $"opt/{word.ToLowerOrEmpty()}/all.gz";
+			Console.WriteLine($"Downloaded {voiceFileName}");
+
+			//await File.WriteAllBytesAsync(videoFileName, videoBytes);
+			Arvan.UploadByteArrayToS3(voiceBytes, ArvanService.BUCKET_NAME, voiceFileName);
+			Console.WriteLine($"Uploaded {voiceFileName}");
+			progress.Value = ++counter;
+
+			Title = $"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length), 0)})%";
+			Msg = "Downloaded : " + voiceFileName;
+
+			StateHasChanged();
+
+			await File.WriteAllTextAsync(fileCounter, counter.ToString());
+			await Task.Delay(1);
+
+
+		}
+	}
+
+}
