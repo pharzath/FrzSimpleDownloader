@@ -1,0 +1,136 @@
+﻿@page "/LegacyImageDownloader"
+@using FrzSimpleDownloader.Services
+
+<MudCard Elevation="2" Class="m-4">
+	<MudCardHeader>
+		Download Video Content Files from Video list on :
+		<MudText Typo="Typo.caption">
+			@textFileUrl
+		</MudText>
+	</MudCardHeader>
+	<MudCardContent>
+		<MudText>
+			Downlods will be uploaded to :
+		</MudText>
+		<MudText>
+			"https://word-images.cdn-wordup.com/legacy/WORD.jpg"
+		</MudText>
+		<MudProgressLinear @ref="progress" Min="0" Size="Size.Large" Color="Color.Info" Striped="true"></MudProgressLinear>
+		<MudText Typo="Typo.body1">
+			@Title
+		</MudText>
+		<MudText Typo="Typo.body2" Color="Color.Primary">
+			@Msg
+		</MudText>
+
+	</MudCardContent>
+	<MudCardActions>
+		<MudButton Size="Size.Medium" Color="Color.Warning" OnClick="GetDownlaodeList">
+			Get Legacy Images From Words
+		</MudButton>
+
+	</MudCardActions>
+</MudCard>
+
+
+<MudPaper Elevation="1">
+
+</MudPaper>
+@code {
+	MudProgressLinear? progress;
+	[Inject] ArvanService Arvan { get; set; }
+	string Title;
+	string Msg;
+	// URL of the text file containing video IDs
+	string textFileUrl = "https://vocavers.cdn-havesh.ir/Words-v19.txt";
+
+	string[] words;
+	int counter = 0;
+	string posterCounter = "LegacyImageDownloadCounter.txt";
+	protected override async Task OnInitializedAsync()
+	{
+		using HttpClient httpClient = new HttpClient();
+		// Download the text file
+		var textFileContent = await httpClient.GetStringAsync(textFileUrl);
+
+		// Split the text file content into words
+		words = textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+		if (File.Exists(posterCounter))
+		{
+			var count = await File.ReadAllTextAsync(posterCounter);
+			counter = Convert.ToInt32(count);
+		}
+		Title = $"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length) ,0)})%";
+
+		await base.OnInitializedAsync();
+	}
+
+	protected override void OnAfterRender(bool firstRender)
+	{
+		if(firstRender && progress != null)
+			progress.Value = counter;
+
+		base.OnAfterRender(firstRender);
+	}
+
+	private async Task GetDownlaodeList()
+	{
+
+		// URL pattern for video files
+		var posterUrlPattern = "https://word-images.cdn-wordup.com/legacy/{0}.jpg";
+		try
+		{
+			using HttpClient httpClient = new HttpClient();
+
+			//var words = new[] { "166228", "149065" };
+			progress.Max = words.Length;
+			// Download video files for each ID
+
+			foreach (var word in words.Skip(counter))
+			{
+
+
+				var videoUrl = string.Format(posterUrlPattern, word);
+
+				// Download and save the video file
+				byte[] videoBytes;
+
+				try
+				{
+					videoBytes = await httpClient.GetByteArrayAsync(videoUrl);
+				}
+				catch (Exception e)
+				{
+					var errFile = $"error-LegacyImage.txt";
+					await File.AppendAllLinesAsync(errFile, new[] { word });
+
+					Console.WriteLine("************ " + e.Message);
+					continue;
+
+				}
+				var iamgeFile = $"legacy/{word}.jpg";
+				Console.WriteLine($"Downloaded {iamgeFile}");
+
+				//await File.WriteAllBytesAsync(videoFileName, videoBytes);
+				Arvan.UploadByteArrayToS3(videoBytes , ArvanService.BUCKET_NAME , iamgeFile);
+				Console.WriteLine($"Uploaded {iamgeFile}");
+				progress.Value = ++counter;
+				
+				Title = $"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length) ,0)})%";
+				Msg = "Downloaded : " + iamgeFile;
+
+				StateHasChanged();
+
+				await File.WriteAllTextAsync(posterCounter, counter.ToString());
+				await Task.Delay(1);
+			}
+
+			Console.WriteLine("Download completed.");
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Error: {ex.Message}");
+		}
+	}
+}
+
