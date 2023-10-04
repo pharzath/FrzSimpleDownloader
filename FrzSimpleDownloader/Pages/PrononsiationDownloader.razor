@@ -50,8 +50,6 @@
 		set
 		{
 			_accent = value;
-			fileCounter = $"WordsDownloadCounter-{Accent}-{Sex}.txt";
-			url = $"https://cdn-wordup.com/audio/{Accent}-{Sex}/{{0}}.mp3";
 			NewMethod();
 		}
 	}
@@ -63,8 +61,6 @@
 		set
 		{
 			_sex = value;
-			fileCounter = $"WordsDownloadCounter-{Accent}-{Sex}.txt";
-			url = $"https://cdn-wordup.com/audio/{Accent}-{Sex}/{{0}}.mp3";
 			NewMethod();
 		}
 	}
@@ -97,12 +93,20 @@
 
 	private void NewMethod()
 	{
+		fileCounter = $"WordsDownloadCounter-{Accent}-{Sex}.txt";
+		url = $"https://cdn-wordup.com/audio/{Accent}-{Sex}/{{0}}.mp3";
+
 		// Split the text file content into words
 		if (File.Exists(fileCounter))
 		{
 			var count = File.ReadAllText(fileCounter);
 			counter = Convert.ToInt32(count);
 		}
+		else
+		{
+			counter = 0;
+		}
+		progress.Value = counter;
 
 		Title =
 			$"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length), 0)})%";
