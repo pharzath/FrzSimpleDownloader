@@ -35,8 +35,8 @@
 			var textFileContent = await httpClient.GetStringAsync(textFileUrl);
 
 			// Split the text file content into lines
-			//var lines = textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-			var lines = new[] { "166228", "149065" };
+			var lines = textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+			//var lines = new[] { "166228", "149065" };
 			progress.Max = lines.Length;
 			// Download video files for each ID
 			var counter = 0;
@@ -63,13 +63,13 @@
 				Console.WriteLine($"Uploaded {videoFileName}");
 				progress.Value = ++counter;
 				
-				Title = "Total Downlaod :  " + counter;
+				Title = "Total Downlaod :  " + counter + " of " + lines.Length;
 				Msg = "Downloaded : " + videoFileName;
 
 				StateHasChanged();
 
 				await File.WriteAllTextAsync("VideoDownloadCounter.txt",counter.ToString());
-				await Task.Delay(100);
+				await Task.Delay(10);
 			}
 
 			Console.WriteLine("Download completed.");
