@@ -102,7 +102,7 @@
 				Console.WriteLine($"Uploaded {videoFileName}");
 				progress.Value = ++counter;
 				
-				Title = "Total Downlaod :  " + counter + " of " + lines.Length;
+				Title = $"Total Downlaod :  {counter} of {lines.Length} ({Math.Round((double)((counter * 100) / lines.Length) ,0)})%";
 				Msg = "Downloaded : " + videoFileName;
 
 				StateHasChanged();

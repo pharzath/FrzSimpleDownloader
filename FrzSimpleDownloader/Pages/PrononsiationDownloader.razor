@@ -1,0 +1,111 @@
+﻿@page "/Pronounsiations"
+@using FrzSimpleDownloader.Services
+@using Olive
+
+<MudCard Elevation="2">
+	<MudCardHeader>
+		Downlaod Pronunsiations
+	</MudCardHeader>
+	<MudCardContent>
+		<MudGrid>
+			<MudItem md="6">
+				<MudSelect @bind-Value="Accent" Label="Select Accesnt">
+					<MudSelectItem Value="@("us")">American</MudSelectItem>
+					<MudSelectItem Value="@("gb")">British</MudSelectItem>
+				</MudSelect>
+			</MudItem>
+			<MudItem md="6">
+				<MudSelect @bind-Value="Sex" Label="Select Gender">
+					<MudSelectItem Value="@("m")">Male</MudSelectItem>
+					<MudSelectItem Value="@("f")">Femail</MudSelectItem>
+				</MudSelect>
+			</MudItem>
+		</MudGrid>
+		
+		<MudDivider DividerType="DividerType.FullWidth"></MudDivider>
+
+		<MudStack Spacing="2">
+			<MudProgressLinear @ref="progress" Min="0" Striped="true" Color="Color.Success"></MudProgressLinear>
+			<MudText Typo="Typo.body1">
+				@Title
+			</MudText>
+			<MudText>
+				@Msg
+			</MudText>
+		</MudStack>
+	</MudCardContent>
+	<MudCardActions>
+		<MudButton Size="Size.Large" Color="Color.Success" OnClick="StartDownlaodClick">
+			Download Pronunsiations
+		</MudButton>
+	</MudCardActions>
+</MudCard>
+
+@code {
+	string Accent = "us";
+	string Sex = "m";
+
+	MudProgressLinear? progress;
+	[Inject] ArvanService Arvan { get; set; }
+
+	string Title;
+	string Msg;
+	// URL of the text file containing video IDs
+	string textFileUrl = "https://vocavers.cdn-havesh.ir/Words-v19.txt";
+
+	string[] words;
+	int counter = 0;
+	protected override async Task OnInitializedAsync()
+	{
+		using HttpClient httpClient = new HttpClient();
+	// Download the text file
+		var textFileContent = await httpClient.GetStringAsync(textFileUrl);
+
+	// Split the text file content into words
+		words = textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+		var fileCounter = $"WordsDownloadCounter-{Accent}-{Sex}.txt";
+		if (File.Exists(fileCounter))
+		{
+			var count = await File.ReadAllTextAsync(fileCounter);
+			counter = Convert.ToInt32(count);
+		}
+		Title = $"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length) ,0)})%";
+
+		await base.OnInitializedAsync();
+	}
+
+
+	private async Task StartDownlaodClick()
+	{
+		var url = $"https://cdn-wordup.com/audio/{Accent}-{Sex}/{{0}}.mp3";
+		var fileCounter = $"WordsDownloadCounter-{Accent}-{Sex}.txt";
+		using var httpClient = new HttpClient();
+		if (progress != null) 
+			progress.Max = words.Length;
+
+		foreach (var word in words.Skip(counter))
+		{
+			var voiceUrl = string.Format(url, word.ToLowerOrEmpty());
+	// Download and save the video file
+			var voiceBytes = await httpClient.GetByteArrayAsync(voiceUrl);
+			var voiceFileName = $"audio/{Accent}-{Sex}/{word.ToLowerOrEmpty()}.mp3";
+			Console.WriteLine($"Downloaded {voiceFileName}");
+
+	//await File.WriteAllBytesAsync(videoFileName, videoBytes);
+			Arvan.UploadByteArrayToS3(voiceBytes , ArvanService.BUCKET_NAME , voiceFileName);
+			Console.WriteLine($"Uploaded {voiceFileName}");
+			progress.Value = ++counter;
+				
+			Title = $"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length) ,0)})%";
+			Msg = "Downloaded : " + voiceFileName;
+
+			StateHasChanged();
+
+			await File.WriteAllTextAsync(fileCounter,counter.ToString());
+			await Task.Delay(1);
+
+			
+		}
+	}
+
+}
