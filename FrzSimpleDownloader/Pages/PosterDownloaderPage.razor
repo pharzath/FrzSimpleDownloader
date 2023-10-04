@@ -1,0 +1,137 @@
+﻿@page "/PosterDownloader"
+@using FrzSimpleDownloader.Services
+
+<MudCard Elevation="2" Class="m-4">
+	<MudCardHeader>
+		Download Video Content Files from Video list on :
+		<MudText Typo="Typo.caption">
+			@textFileUrl
+		</MudText>
+	</MudCardHeader>
+	<MudCardContent>
+		<MudText>
+			Downlods will be uploaded to :
+		</MudText>
+		<MudText>
+			"https://s3.ir-thr-at1.arvanstorage.ir/mp4"
+		</MudText>
+		<MudProgressLinear @ref="progress" Min="0" Size="Size.Large" Color="Color.Warning" Striped="true"></MudProgressLinear>
+		<MudText Typo="Typo.body1">
+			@Title
+		</MudText>
+		<MudText Typo="Typo.body2" Color="Color.Primary">
+			@Msg
+		</MudText>
+
+	</MudCardContent>
+	<MudCardActions>
+		<MudButton Size="Size.Medium" Color="Color.Warning" OnClick="GetDownlaodeList">
+			Get Videos From List 
+		</MudButton>
+
+	</MudCardActions>
+</MudCard>
+
+
+<MudPaper Elevation="1">
+
+</MudPaper>
+@code {
+	MudProgressLinear? progress;
+	[Inject] ArvanService Arvan { get; set; }
+	string Title;
+	string Msg;
+	// URL of the text file containing video IDs
+	string textFileUrl = "https://vocavers.cdn-havesh.ir/VideoIdsToDownload.txt";
+
+	string[] lines;
+	int counter = 0;
+	string posterCounter = "PosterDownloadCounter.txt";
+	protected override async Task OnInitializedAsync()
+	{
+		using HttpClient httpClient = new HttpClient();
+		// Download the text file
+		var textFileContent = await httpClient.GetStringAsync(textFileUrl);
+
+		// Split the text file content into lines
+		lines = textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+		if (File.Exists(posterCounter))
+		{
+			var count = await File.ReadAllTextAsync(posterCounter);
+			counter = Convert.ToInt32(count);
+		}
+		Title = $"Total Downlaod :  {counter} of {lines.Length} ({Math.Round((double)((counter * 100) / lines.Length) ,0)})%";
+
+		await base.OnInitializedAsync();
+	}
+
+	protected override void OnAfterRender(bool firstRender)
+	{
+		if(firstRender && progress != null)
+			progress.Value = counter;
+
+		base.OnAfterRender(firstRender);
+	}
+
+	private async Task GetDownlaodeList()
+	{
+
+		// URL pattern for video files
+		var posterUrlPattern = "https://v.cdn-wordup.com/poster/{0}.jpg";
+		try
+		{
+			using HttpClient httpClient = new HttpClient();
+
+			//var lines = new[] { "166228", "149065" };
+			progress.Max = lines.Length;
+			// Download video files for each ID
+
+			foreach (var line in lines.Skip(counter))
+			{
+				if (!int.TryParse(line, out var videoId))
+					continue;
+
+				var videoUrl = string.Format(posterUrlPattern, videoId);
+
+				// Download and save the video file
+				byte[] videoBytes;
+
+				try
+				{
+					videoBytes = await httpClient.GetByteArrayAsync(videoUrl);
+				}
+				catch (Exception e)
+				{
+					var errFile = $"error-VIDEO-Poster.txt";
+					await File.AppendAllLinesAsync(errFile, new[] { line });
+
+					Console.WriteLine("************ " + e.Message);
+					continue;
+
+				}
+				var videoFileName = $"poster/{videoId}.jpg";
+				Console.WriteLine($"Downloaded {videoFileName}");
+
+				//await File.WriteAllBytesAsync(videoFileName, videoBytes);
+				Arvan.UploadByteArrayToS3(videoBytes , ArvanService.BUCKET_NAME , videoFileName);
+				Console.WriteLine($"Uploaded {videoFileName}");
+				progress.Value = ++counter;
+				
+				Title = $"Total Downlaod :  {counter} of {lines.Length} ({Math.Round((double)((counter * 100) / lines.Length) ,0)})%";
+				Msg = "Downloaded : " + videoFileName;
+
+				StateHasChanged();
+
+				await File.WriteAllTextAsync(posterCounter, counter.ToString());
+				await Task.Delay(1);
+			}
+
+			Console.WriteLine("Download completed.");
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Error: {ex.Message}");
+		}
+	}
+}
+
