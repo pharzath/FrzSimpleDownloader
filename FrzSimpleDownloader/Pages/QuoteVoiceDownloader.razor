@@ -191,7 +191,7 @@
 				}
 				catch (Exception e)
 				{
-					var errFile = $"error-Quotes.txt";
+					var errFile = $"error-Quotes_{Accent}.txt";
 					await File.AppendAllLinesAsync(errFile, new[] { quote });
 
 					Console.WriteLine("************ " + e.Message);
