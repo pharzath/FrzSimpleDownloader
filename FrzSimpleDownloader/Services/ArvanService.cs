@@ -178,6 +178,7 @@ namespace FrzSimpleDownloader.Services
 				GetObjectMetadataRequest metadataRequest = new GetObjectMetadataRequest
 				{
 					BucketName = bucketName,
+					
 					Key = $"{folderPath.TrimEnd('/')}/{objectKey}",
 				};
 

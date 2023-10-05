@@ -1,6 +1,7 @@
 ﻿@page "/QuoteVoiceDownloader"
 @using FrzSimpleDownloader.Services
 @using Olive
+@using System.Reflection.Emit
 
 <MudCard Elevation="2">
 	<MudCardHeader>
@@ -116,7 +117,7 @@
 	private void PopulateTotals(string accent, int section)
 	{
 		url = $"https://speech.cdn-wordup.com/{accent}/{{0}}.mp3";
-		fileCounter = fileCounterName.FormatWith(accent , section);
+		fileCounter = fileCounterName.FormatWith(accent, section);
 		// Split the text file content into quotes
 		if (File.Exists(fileCounter))
 		{
@@ -154,20 +155,20 @@
 		using var httpClient = new HttpClient();
 		if (progress != null)
 			progress.Max = quotes.Length;
-		int _s = Section;
+		var _s = Section;
 
 		Running = true;
 		for (var i = _s; i <= 25; i++)
 		{
-			if(Stop) break;
+			if (Stop) break;
 			_section = i;
 			quotes = await GetQuotesBySection(_section);
-			PopulateTotals(Accent , _section);
+			PopulateTotals(Accent, _section);
 
 			progress.Max = quotes.Length;
 			foreach (var quote in quotes.Skip(counter))
 			{
-				if(Stop) break;
+				if (Stop) break;
 				var key = GetQuoteKey(quote);
 				var quoteLink = string.Format(url, key);
 
@@ -178,11 +179,12 @@
 				{
 					if (CheckExistBefore)
 					{
-						var itemExist = await Arvan.ItemExist(ArvanService.BUCKET_NAME, "speach", quoteLink);
-						if(itemExist)
+						var itemExist = await Arvan.ItemExist(ArvanService.BUCKET_NAME, "speach", $"{key}.mp3");
+						if (itemExist)
 						{
-							counter++;
-							continue;
+							Console.WriteLine("------------------------ Item Exists in Bucket");
+							Msg = "Item Exists in Bucket";
+							goto LabelEND;
 						}
 					}
 					voiceBytes = await httpClient.GetByteArrayAsync(quoteLink);
@@ -193,18 +195,19 @@
 					await File.AppendAllLinesAsync(errFile, new[] { quote });
 
 					Console.WriteLine("************ " + e.Message);
-					counter++;
-					continue;
+					goto LabelEND;
 				}
+
 				var voiceFileName = $"speach/{key}.mp3";
 				Console.WriteLine($"Downloaded {voiceFileName}");
 
 				//await File.WriteAllBytesAsync(videoFileName, videoBytes);
 				Arvan.UploadByteArrayToS3(voiceBytes, ArvanService.BUCKET_NAME, voiceFileName);
-				progress.Value = ++counter;
-
-				Title = $"Total Downlaod :  {counter} of {this.quotes.Length} ({Math.Round((double)((counter * 100) / this.quotes.Length), 1)})%";
 				Msg = "Downloaded : " + voiceFileName;
+
+			LabelEND:
+				progress.Value = ++counter;
+				Title = $"Total Downlaod :  {counter} of {this.quotes.Length} ({Math.Round((double)((counter * 100) / this.quotes.Length), 1)})%";
 
 				StateHasChanged();
 
@@ -224,17 +227,17 @@
 		get => _section;
 		set
 		{
-			if(_section == value) return;
+			if (_section == value) return;
 
 			_section = value;
 			InvokeAsync(async () =>
 			{
 				quotes = await GetQuotesBySection(_section);
-				PopulateTotals(Accent , _section);
-				
+				PopulateTotals(Accent, _section);
+
 				StateHasChanged();
 			});
-			
+
 
 		}
 	}
