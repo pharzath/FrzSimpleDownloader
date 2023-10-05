@@ -30,6 +30,9 @@
 </MudCard>
 
 @code {
+
+
+
 	private string _accent = "us";
 	string Accent
 	{
@@ -39,6 +42,25 @@
 			_accent = value;
 			PopulateTotals(_accent, Section);
 		}
+	}
+	/// <summary>
+	///
+	/// </summary>
+	// https://author.cdn-wordup.com/img/#AuthorKey#.jpg
+	// #AuthorKey# = "Marcus Aurelius" => "Marcus-Aurelius"
+	// https://author.cdn-wordup.com/img/marcus-aurelius.jpg
+
+	public static string ToNameUrlKey(string name)
+	{
+		return name
+			.OrEmpty()
+			.Replace("_", "-")
+			.Replace(" ", "-")
+			.Replace("_", "-")
+			.Where(x => x.IsLetterOrDigit() || x == '-')
+			.ToString("")
+			.KeepReplacing("--", "-")
+			.ToLower();
 	}
 
 	MudProgressLinear? progress;
@@ -109,10 +131,10 @@
 		using var httpClient = new HttpClient();
 		if (progress != null)
 			progress.Max = quotes.Length;
-		for (var i = Section; i <= 25; i++)
+		int _s = Section;
+		for (var i = _s; i <= 25; i++)
 		{
-			if (i != Section)
-				quotes = await GetQuotesBySection(i);
+			Section = i;
 			progress.Max = quotes.Length;
 			foreach (var quote in quotes.Skip(counter))
 			{
@@ -160,6 +182,8 @@
 		get => _section;
 		set
 		{
+			if(_section == value) return;
+
 			_section = value;
 			InvokeAsync(async () =>
 			{

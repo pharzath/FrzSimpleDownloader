@@ -1,0 +1,159 @@
+﻿@page "/AuthorImageDownloader"
+@using FrzSimpleDownloader.Services
+@using Olive
+
+<MudCard Elevation="2">
+	<MudCardHeader>
+		Downlaod Pronunsiations
+	</MudCardHeader>
+	<MudCardContent>
+		<MudStack Spacing="2">
+			<MudProgressLinear @ref="progress" Min="0" Striped="true" Color="Color.Tertiary" Size="Size.Large"></MudProgressLinear>
+			<MudText Typo="Typo.body1">
+				@Title
+			</MudText>
+			<MudText>
+				@Msg
+			</MudText>
+		</MudStack>
+	</MudCardContent>
+	<MudCardActions>
+		<MudButton Size="Size.Large" Color="Color.Error" OnClick="StartDownlaodClick">
+			Download Quote Author Images
+		</MudButton>
+	</MudCardActions>
+</MudCard>
+
+@code {
+
+	/// <summary>
+	///
+	/// </summary>
+	// https://author.cdn-wordup.com/img/#AuthorKey#.jpg
+	// #AuthorKey# = "Marcus Aurelius" => "Marcus-Aurelius"
+	// https://author.cdn-wordup.com/img/marcus-aurelius.jpg
+
+
+	static string ToNameUrlKey(string name)
+	{
+		return name
+			.OrEmpty()
+			.Replace("_", "-")
+			.Replace(" ", "-")
+			.Replace("_", "-")
+			.Where(x => x.IsLetterOrDigit() || x == '-')
+			.ToString("")
+			.KeepReplacing("--", "-")
+			.ToLower();
+	}
+
+	MudProgressLinear? progress;
+	[Inject] ArvanService Arvan { get; set; }
+
+	string Title;
+	string Msg;
+	// URL of the text file containing video IDs
+	//string textFileUrl = "https://vocavers.cdn-havesh.ir/Words-v19.txt";
+	string url;
+
+	string[] authors;
+	int counter = 0;
+
+	string fileCounter;
+	string fileCounterName = "QuoteAuthorImageCounter.txt";
+	private int _section = 1;
+
+	protected override async Task OnInitializedAsync()
+	{
+		authors = await GetAuthors();
+		progress.Max = authors.Length;
+		PopulateTotals();
+
+		await base.OnInitializedAsync();
+	}
+
+	private async Task<string[]> GetAuthors()
+	{
+		using HttpClient httpClient = new HttpClient();
+		// Download the text file
+		var sectionUrl = $"https://vocavers.s3.ir-thr-at1.arvanstorage.ir/data/Authors.txt";
+		var textFileContent = await httpClient.GetStringAsync(sectionUrl);
+
+		return textFileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+	}
+
+	private void PopulateTotals()
+	{
+		url = "https://author.cdn-wordup.com/img/{0}.jpg";
+		fileCounter = fileCounterName;
+		// Split the text file content into authors
+		if (File.Exists(fileCounter))
+		{
+			var count = File.ReadAllText(fileCounter);
+			counter = Convert.ToInt32(count);
+		}
+		else
+		{
+			counter = 0;
+		}
+		progress.Value = counter;
+
+		Title =
+			$"Total Downlaod :  {counter} of {authors.Length} ({Math.Round((double)((counter * 100) / authors.Length), 0)})%";
+	}
+
+	string GetQuoteKey(string quote)
+	{
+		quote = quote.OrEmpty().Replace("&apos;", "'").Remove("\r").Replace("\n", "\r\n");
+		var key = quote.CreateSHA1Hash() + quote.CreateMD5Hash();
+		key = new string(key.Where(v => v.IsLetterOrDigit()).ToArray());
+		return key;
+	}
+
+	private async Task StartDownlaodClick()
+	{
+		using var httpClient = new HttpClient();
+		if (progress != null)
+			progress.Max = authors.Length;
+
+		foreach (var author in authors.Skip(counter))
+		{
+			var key = ToNameUrlKey(author);
+			var authorImageUrl = string.Format(url, key);
+
+
+			// Download and save the quote voice file by Accent
+			byte[] voiceBytes;
+			try
+			{
+				voiceBytes = await httpClient.GetByteArrayAsync(authorImageUrl);
+
+			}
+			catch (Exception e)
+			{
+				var errFile = $"error-AuthorImages.txt";
+				await File.AppendAllLinesAsync(errFile, new[] { author });
+
+				Console.WriteLine("************ " + e.Message);
+				continue;
+			}
+			var imageFile = $"author/img/{key}.jpg";
+			Console.WriteLine($"Downloaded {imageFile}");
+
+			//await File.WriteAllBytesAsync(videoFileName, videoBytes);
+			Arvan.UploadByteArrayToS3(voiceBytes, ArvanService.BUCKET_NAME, imageFile);
+			Console.WriteLine($"Uploaded {imageFile}");
+			progress.Value = ++counter;
+
+			Title = $"Total Downlaod :  {counter} of {this.authors.Length} ({Math.Round((double)((counter * 100) / this.authors.Length), 0)})%";
+			Msg = "Downloaded : " + imageFile;
+
+			StateHasChanged();
+
+			await File.WriteAllTextAsync(fileCounter, counter.ToString());
+			await Task.Delay(1);
+		}
+		counter = 0;
+	}
+
+}
