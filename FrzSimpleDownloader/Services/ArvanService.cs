@@ -94,6 +94,83 @@ namespace FrzSimpleDownloader.Services
 			}
 		}
 
-	}
+		/// <summary>
+		/// Uses the client object to get a  list of the objects in the S3
+		/// bucket in the bucketName parameter.
+		/// </summary>
+		/// <param name="vocavers"></param>
+		/// <param name="bucketName">The bucket name for which you want to
+		///     retrieve a list of objects.</param>
+		/// <param name="client">The initialized S3 client obect used to call
+		/// the ListObjectsAsync method.</param>
+		public async Task<Dictionary<string, long>> ListingObjectsAsync(string bucketName, string folder)
+		{
+			var objects = new Dictionary<string, long>();
+			try
+			{
+				ListObjectsRequest request = new()
+				{
+					BucketName = bucketName,
+					Prefix = folder,
+					MaxKeys = 500,
+				};
+
+				do
+				{
+					var response = await _s3Client.ListObjectsAsync(request);
+
+					// Process the response.
+					response.S3Objects
+						.ForEach(obj =>
+						{
+							//Console.WriteLine($"{obj.Key,-35}{obj.LastModified.ToShortDateString(),10}{obj.Size,10}");
+							objects.Add(obj.Key , obj.Size);
+						});
+					
+					// If the response is truncated, set the marker to get the next
+					// set of keys.
+					if (response.IsTruncated)
+					{
+						request.Marker = response.NextMarker;
+					}
+					else
+					{
+						request = null;
+					}
+				} while (request != null);
+			}
+			catch (AmazonS3Exception ex)
+			{
+				Console.WriteLine($"Error encountered on server. Message:'{ex.Message}' getting list of objects.");
+			}
+
+			return objects;
+		}
+			public async Task<int> GetFolderFilesCount(string bucketName , string folderPath)
+			{
+
+				try
+				{
+					ListObjectsV2Request request = new ListObjectsV2Request
+					{
+						BucketName = bucketName,
+						Prefix = folderPath,
+						MaxKeys = Int32.MaxValue
+					};
+
+					var response = await _s3Client.ListObjectsV2Async(request);
+
+					var fileCount = response.S3Objects.Count;
+					return fileCount;
+					Console.WriteLine($"Number of files in folder '{folderPath}': {fileCount}");
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"Error: {ex.Message}");
+				}
+				return 0;
+			}
+
+}
 }
 

@@ -26,12 +26,23 @@
 		<MudButton Size="Size.Large" Color="Color.Error" OnClick="StartDownlaodClick">
 			Download Quote Voices
 		</MudButton>
+		
+		<MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Stop" OnClick="StopDownload">
+			Stop
+		</MudButton>
 	</MudCardActions>
 </MudCard>
 
+
+<MudButton OnClick="CheckData">
+	Check Data
+</MudButton>
+<MudText Typo="Typo.h4">
+	@Content
+</MudText>
 @code {
 
-
+	string Content;
 
 	private string _accent = "us";
 	string Accent
@@ -126,18 +137,31 @@
 		return key;
 	}
 
+	async Task CheckData()
+	{
+		var folderFilesCount = await Arvan.GetFolderFilesCount(ArvanService.BUCKET_NAME, "speach");
+		Content = folderFilesCount.ToString();
+		StateHasChanged();
+	}
+
 	private async Task StartDownlaodClick()
 	{
 		using var httpClient = new HttpClient();
 		if (progress != null)
 			progress.Max = quotes.Length;
 		int _s = Section;
+
 		for (var i = _s; i <= 25; i++)
 		{
-			Section = i;
+			if(Stop) break;
+			_section = i;
+			quotes = await GetQuotesBySection(_section);
+			PopulateTotals(Accent , _section);
+
 			progress.Max = quotes.Length;
 			foreach (var quote in quotes.Skip(counter))
 			{
+				if(Stop) break;
 				var key = GetQuoteKey(quote);
 				var quoteLink = string.Format(url, key);
 
@@ -176,6 +200,7 @@
 			counter = 0;
 			break;
 		}
+		Stop = false;
 	}
 
 	public int Section
@@ -196,6 +221,12 @@
 			
 
 		}
+	}
+
+	bool Stop = false;
+	private void StopDownload()
+	{
+		Stop = true;
 	}
 
 }
