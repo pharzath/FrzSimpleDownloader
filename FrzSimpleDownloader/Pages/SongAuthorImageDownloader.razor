@@ -1,0 +1,198 @@
+﻿@page "/SongAuthorImageDownloader"
+@using FrzSimpleDownloader.Services
+@using Olive
+@using System.Reflection.Emit
+
+<MudCard Elevation="2">
+	<MudCardHeader>
+		Downlaod Pronunsiations
+	</MudCardHeader>
+	<MudCardContent>
+		<MudStack Spacing="2">
+			<MudProgressLinear @ref="progress" Min="0" Striped="true" Color="Color.Tertiary" Size="Size.Large"></MudProgressLinear>
+			<MudText Typo="Typo.body1">
+				@Title
+			</MudText>
+			<MudText>
+				@Msg
+			</MudText>
+		</MudStack>
+	</MudCardContent>
+	<MudCardActions>
+		<MudCheckBox @bind-Checked="CheckExistBefore" Label="Check Item Exist in bucket befor GET">
+
+		</MudCheckBox>
+		<MudButton Size="Size.Large" Color="Color.Error" OnClick="StartDownlaodClick">
+			Download Author Image
+		</MudButton>
+		@if (Running)
+		{
+			<MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Stop" OnClick="StopDownload">
+				Stop
+			</MudButton>
+
+		}
+	</MudCardActions>
+</MudCard>
+
+<MudText Typo="Typo.h4">
+	@Content
+</MudText>
+@code {
+	bool Running;
+	string Content;
+
+	/// <summary>
+	///
+	/// </summary>
+	// "https://author.cdn-wordup.com/img/{0}.jpg"
+
+
+	public static string ToNameUrlKey(string name)
+	{
+		return name
+			.OrEmpty()
+			.Replace("_", "-")
+			.Replace(" ", "-")
+			.Replace("_", "-")
+			.Where(x => x.IsLetterOrDigit() || x == '-')
+			.ToString("")
+			.KeepReplacing("--", "-")
+			.ToLower();
+	}
+
+	MudProgressLinear? progress;
+	[Inject] ArvanService Arvan { get; set; }
+
+	string Title;
+	string Msg;
+	// URL of the text file containing video IDs
+	//string textFileUrl = "https://vocavers.cdn-havesh.ir/Words-v19.txt";
+	string url;
+
+	string[] songAuthorImage;
+	int counter = 0;
+
+	string fileCounter;
+	string fileCounterName = "SongsCounter.txt";
+	private int _section = 1;
+
+	protected override async Task OnInitializedAsync()
+	{
+		songAuthorImage = await GetSongs();
+		progress.Max = songAuthorImage.Length;
+		PopulateTotals();
+
+		await base.OnInitializedAsync();
+	}
+
+	private async Task<string[]> GetSongs()
+	{
+		using HttpClient httpClient = new HttpClient();
+		// Download the text file
+		var sectionUrl = $"https://vocavers.s3.ir-thr-at1.arvanstorage.ir/data/SongsArtist.txt";
+		var textFileContent = await httpClient.GetStringAsync(sectionUrl);
+
+		return textFileContent
+			.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+			.Select(x => x.ToLower())
+			.ToArray();
+	}
+
+	private void PopulateTotals()
+	{
+		url = "https://author.cdn-wordup.com/img/{0}.jpg";
+
+		if (File.Exists(fileCounter))
+		{
+			var count = File.ReadAllText(fileCounter);
+			counter = Convert.ToInt32(count);
+		}
+		else
+		{
+			counter = 0;
+		}
+		progress.Value = counter;
+
+		Title =
+			$"Total Downlaod :  {counter} of {songAuthorImage.Length} ({Math.Round((double)((counter * 100) / songAuthorImage.Length), 1)})%";
+	}
+
+	string GetQuoteKey(string quote)
+	{
+		quote = quote.OrEmpty().Replace("&apos;", "'").Remove("\r").Replace("\n", "\r\n");
+		var key = quote.CreateSHA1Hash() + quote.CreateMD5Hash();
+		key = new string(key.Where(v => v.IsLetterOrDigit()).ToArray());
+		return key;
+	}
+
+	bool CheckExistBefore;
+	private async Task StartDownlaodClick()
+	{
+		using var httpClient = new HttpClient();
+		if (progress != null)
+			progress.Max = songAuthorImage.Length;
+
+
+		progress.Max = songAuthorImage.Length;
+		foreach (var author in songAuthorImage.Skip(counter))
+		{
+			if (Stop) break;
+			var key = ToNameUrlKey(author);
+			var songImageUrl = string.Format(url, key);
+
+
+			// Download and save the quote voice file by Accent
+			byte[] voiceBytes;
+			try
+			{
+				if (CheckExistBefore)
+				{
+					var itemExist = await Arvan.ItemExist(ArvanService.BUCKET_NAME, "author/img", $"{key}.jpg");
+					if (itemExist)
+					{
+						Console.WriteLine("------------------------ Item Exists in Bucket");
+						Msg = "Item Exists in Bucket";
+						goto LabelEND;
+					}
+				}
+				voiceBytes = await httpClient.GetByteArrayAsync(songImageUrl);
+			}
+			catch (Exception e)
+			{
+				var errFile = $"error-SongAuthorImage.txt";
+				await File.AppendAllLinesAsync(errFile, new[] { author });
+
+				Console.WriteLine("************ " + e.Message);
+				goto LabelEND;
+			}
+
+			var imageFile = $"author/img/{key}.jpg";
+			Console.WriteLine($"Downloaded {imageFile}");
+
+			//await File.WriteAllBytesAsync(videoFileName, videoBytes);
+			Arvan.UploadByteArrayToS3(voiceBytes, ArvanService.BUCKET_NAME, imageFile);
+			Msg = "Downloaded : " + imageFile;
+
+		LabelEND:
+			progress.Value = ++counter;
+			Title = $"Total Downlaod :  {counter} of {this.songAuthorImage.Length} ({Math.Round((double)((counter * 100) / this.songAuthorImage.Length), 1)})%";
+
+			StateHasChanged();
+
+			await File.WriteAllTextAsync(fileCounter, counter.ToString());
+			await Task.Delay(1);
+		}
+
+		Running = false;
+		Stop = false;
+	}
+
+
+	bool Stop = false;
+	private void StopDownload()
+	{
+		Stop = true;
+	}
+
+}
