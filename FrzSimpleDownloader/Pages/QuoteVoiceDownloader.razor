@@ -115,7 +115,7 @@
 		progress.Value = counter;
 
 		Title =
-			$"Total Downlaod :  {counter} of {quotes.Length} ({Math.Round((double)((counter * 100) / quotes.Length), 0)})%";
+			$"Total Downlaod :  {counter} of {quotes.Length} ({Math.Round((double)((counter * 100) / quotes.Length), 1)})%";
 	}
 
 	string GetQuoteKey(string quote)
@@ -162,10 +162,9 @@
 
 				//await File.WriteAllBytesAsync(videoFileName, videoBytes);
 				Arvan.UploadByteArrayToS3(voiceBytes, ArvanService.BUCKET_NAME, voiceFileName);
-				Console.WriteLine($"Uploaded {voiceFileName}");
 				progress.Value = ++counter;
 
-				Title = $"Total Downlaod :  {counter} of {this.quotes.Length} ({Math.Round((double)((counter * 100) / this.quotes.Length), 0)})%";
+				Title = $"Total Downlaod :  {counter} of {this.quotes.Length} ({Math.Round((double)((counter * 100) / this.quotes.Length), 1)})%";
 				Msg = "Downloaded : " + voiceFileName;
 
 				StateHasChanged();
@@ -173,7 +172,9 @@
 				await File.WriteAllTextAsync(fileCounter, counter.ToString());
 				await Task.Delay(1);
 			}
+
 			counter = 0;
+			break;
 		}
 	}
 
