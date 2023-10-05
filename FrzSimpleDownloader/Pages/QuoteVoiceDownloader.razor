@@ -23,13 +23,17 @@
 		</MudStack>
 	</MudCardContent>
 	<MudCardActions>
+		<MudCheckBox @bind-Checked="CheckExistBefore" Label="Check Item Exist in bucket befor GET"></MudCheckBox>
 		<MudButton Size="Size.Large" Color="Color.Error" OnClick="StartDownlaodClick">
 			Download Quote Voices
 		</MudButton>
-		
-		<MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Stop" OnClick="StopDownload">
-			Stop
-		</MudButton>
+		@if (Running)
+		{
+			<MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Stop" OnClick="StopDownload">
+				Stop
+			</MudButton>
+
+		}
 	</MudCardActions>
 </MudCard>
 
@@ -41,7 +45,7 @@
 	@Content
 </MudText>
 @code {
-
+	bool Running;
 	string Content;
 
 	private string _accent = "us";
@@ -144,6 +148,7 @@
 		StateHasChanged();
 	}
 
+	bool CheckExistBefore;
 	private async Task StartDownlaodClick()
 	{
 		using var httpClient = new HttpClient();
@@ -151,6 +156,7 @@
 			progress.Max = quotes.Length;
 		int _s = Section;
 
+		Running = true;
 		for (var i = _s; i <= 25; i++)
 		{
 			if(Stop) break;
@@ -170,8 +176,16 @@
 				byte[] voiceBytes;
 				try
 				{
+					if (CheckExistBefore)
+					{
+						var itemExist = await Arvan.ItemExist(ArvanService.BUCKET_NAME, "speach", quoteLink);
+						if(itemExist)
+						{
+							counter++;
+							continue;
+						}
+					}
 					voiceBytes = await httpClient.GetByteArrayAsync(quoteLink);
-
 				}
 				catch (Exception e)
 				{
@@ -179,6 +193,7 @@
 					await File.AppendAllLinesAsync(errFile, new[] { quote });
 
 					Console.WriteLine("************ " + e.Message);
+					counter++;
 					continue;
 				}
 				var voiceFileName = $"speach/{key}.mp3";
@@ -200,6 +215,7 @@
 			counter = 0;
 			break;
 		}
+		Running = false;
 		Stop = false;
 	}
 

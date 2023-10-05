@@ -124,9 +124,9 @@ namespace FrzSimpleDownloader.Services
 						.ForEach(obj =>
 						{
 							//Console.WriteLine($"{obj.Key,-35}{obj.LastModified.ToShortDateString(),10}{obj.Size,10}");
-							objects.Add(obj.Key , obj.Size);
+							objects.Add(obj.Key, obj.Size);
 						});
-					
+
 					// If the response is truncated, set the marker to get the next
 					// set of keys.
 					if (response.IsTruncated)
@@ -146,31 +146,63 @@ namespace FrzSimpleDownloader.Services
 
 			return objects;
 		}
-			public async Task<int> GetFolderFilesCount(string bucketName , string folderPath)
+		public async Task<int> GetFolderFilesCount(string bucketName, string folderPath)
+		{
+
+			try
 			{
-
-				try
+				ListObjectsV2Request request = new ListObjectsV2Request
 				{
-					ListObjectsV2Request request = new ListObjectsV2Request
-					{
-						BucketName = bucketName,
-						Prefix = folderPath,
-						MaxKeys = Int32.MaxValue
-					};
+					BucketName = bucketName,
+					Prefix = folderPath,
+					MaxKeys = Int32.MaxValue
+				};
 
-					var response = await _s3Client.ListObjectsV2Async(request);
+				var response = await _s3Client.ListObjectsV2Async(request);
 
-					var fileCount = response.S3Objects.Count;
-					return fileCount;
-					Console.WriteLine($"Number of files in folder '{folderPath}': {fileCount}");
-				}
-				catch (Exception ex)
-				{
-					Console.WriteLine($"Error: {ex.Message}");
-				}
-				return 0;
+				var fileCount = response.S3Objects.Count;
+				return fileCount;
+				Console.WriteLine($"Number of files in folder '{folderPath}': {fileCount}");
 			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Error: {ex.Message}");
+			}
+			return 0;
+		}
 
-}
+		public async Task<bool> ItemExist(string bucketName, string folderPath,string objectKey)
+		{
+			try
+			{
+				GetObjectMetadataRequest metadataRequest = new GetObjectMetadataRequest
+				{
+					BucketName = bucketName,
+					Key = $"{folderPath.TrimEnd('/')}/{objectKey}",
+				};
+
+				// Attempt to get the object metadata
+				var response = await _s3Client.GetObjectMetadataAsync(metadataRequest);
+
+				// If the object metadata request succeeded, the item exists
+				Console.WriteLine($"Item '{objectKey}' exists in folder '{folderPath}'.");
+				return true;
+			}
+			catch (AmazonS3Exception ex)
+			{
+				// If the exception indicates that the object was not found, it does not exist
+				Console.WriteLine(ex.StatusCode == System.Net.HttpStatusCode.NotFound
+					? $"Item '{objectKey}' does not exist in folder '{folderPath}'."
+					: $"Error: {ex.Message}");
+				return false;
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Error: {ex.Message}");
+				return false;
+			}
+		}
+
+	}
 }
 
