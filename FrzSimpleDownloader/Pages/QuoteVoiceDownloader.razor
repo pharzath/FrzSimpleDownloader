@@ -1,6 +1,7 @@
 ﻿@page "/QuoteVoiceDownloader"
 @using FrzSimpleDownloader.Services
 @using Olive
+@using System.Reflection.Emit
 
 <MudCard Elevation="2">
 	<MudCardHeader>
@@ -21,15 +22,19 @@
 				@Msg
 			</MudText>
 		</MudStack>
-	</MudCardContent>
+	</MudCardContent> 
 	<MudCardActions>
+		<MudCheckBox @bind-Checked="CheckExistBefore" Label="Check Item Exist in bucket befor GET"></MudCheckBox>
 		<MudButton Size="Size.Large" Color="Color.Error" OnClick="StartDownlaodClick">
 			Download Quote Voices
 		</MudButton>
-		
-		<MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Stop" OnClick="StopDownload">
-			Stop
-		</MudButton>
+		@if (Running)
+		{
+			<MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Stop" OnClick="StopDownload">
+				Stop
+			</MudButton>
+
+		}
 	</MudCardActions>
 </MudCard>
 
@@ -41,7 +46,7 @@
 	@Content
 </MudText>
 @code {
-
+	bool Running;
 	string Content;
 
 	private string _accent = "us";
@@ -112,7 +117,7 @@
 	private void PopulateTotals(string accent, int section)
 	{
 		url = $"https://speech.cdn-wordup.com/{accent}/{{0}}.mp3";
-		fileCounter = fileCounterName.FormatWith(accent , section);
+		fileCounter = fileCounterName.FormatWith(accent, section);
 		// Split the text file content into quotes
 		if (File.Exists(fileCounter))
 		{
@@ -144,24 +149,26 @@
 		StateHasChanged();
 	}
 
+	bool CheckExistBefore;
 	private async Task StartDownlaodClick()
 	{
 		using var httpClient = new HttpClient();
 		if (progress != null)
 			progress.Max = quotes.Length;
-		int _s = Section;
+		var _s = Section;
 
+		Running = true;
 		for (var i = _s; i <= 25; i++)
 		{
-			if(Stop) break;
+			if (Stop) break;
 			_section = i;
 			quotes = await GetQuotesBySection(_section);
-			PopulateTotals(Accent , _section);
+			PopulateTotals(Accent, _section);
 
 			progress.Max = quotes.Length;
 			foreach (var quote in quotes.Skip(counter))
 			{
-				if(Stop) break;
+				if (Stop) break;
 				var key = GetQuoteKey(quote);
 				var quoteLink = string.Format(url, key);
 
@@ -170,8 +177,17 @@
 				byte[] voiceBytes;
 				try
 				{
+					if (CheckExistBefore)
+					{
+						var itemExist = await Arvan.ItemExist(ArvanService.BUCKET_NAME, "speach", $"{key}.mp3");
+						if (itemExist)
+						{
+							Console.WriteLine("------------------------ Item Exists in Bucket");
+							Msg = "Item Exists in Bucket";
+							goto LabelEND;
+						}
+					}
 					voiceBytes = await httpClient.GetByteArrayAsync(quoteLink);
-
 				}
 				catch (Exception e)
 				{
@@ -179,17 +195,19 @@
 					await File.AppendAllLinesAsync(errFile, new[] { quote });
 
 					Console.WriteLine("************ " + e.Message);
-					continue;
+					goto LabelEND;
 				}
+
 				var voiceFileName = $"speach/{key}.mp3";
 				Console.WriteLine($"Downloaded {voiceFileName}");
 
 				//await File.WriteAllBytesAsync(videoFileName, videoBytes);
 				Arvan.UploadByteArrayToS3(voiceBytes, ArvanService.BUCKET_NAME, voiceFileName);
-				progress.Value = ++counter;
-
-				Title = $"Total Downlaod :  {counter} of {this.quotes.Length} ({Math.Round((double)((counter * 100) / this.quotes.Length), 1)})%";
 				Msg = "Downloaded : " + voiceFileName;
+
+			LabelEND:
+				progress.Value = ++counter;
+				Title = $"Total Downlaod :  {counter} of {this.quotes.Length} ({Math.Round((double)((counter * 100) / this.quotes.Length), 1)})%";
 
 				StateHasChanged();
 
@@ -200,6 +218,7 @@
 			counter = 0;
 			break;
 		}
+		Running = false;
 		Stop = false;
 	}
 
@@ -208,17 +227,17 @@
 		get => _section;
 		set
 		{
-			if(_section == value) return;
+			if (_section == value) return;
 
 			_section = value;
 			InvokeAsync(async () =>
 			{
 				quotes = await GetQuotesBySection(_section);
-				PopulateTotals(Accent , _section);
-				
+				PopulateTotals(Accent, _section);
+
 				StateHasChanged();
 			});
-			
+
 
 		}
 	}
