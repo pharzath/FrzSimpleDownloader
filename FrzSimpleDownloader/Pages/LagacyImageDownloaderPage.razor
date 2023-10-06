@@ -94,6 +94,7 @@
 
 				// Download and save the video file
 				byte[] videoBytes;
+				var iamgeFile = $"legacy/{word}.jpg";
 
 				try
 				{
@@ -105,15 +106,17 @@
 					await File.AppendAllLinesAsync(errFile, new[] { word });
 
 					Console.WriteLine("************ " + e.Message);
-					continue;
+
+					goto Lbl1;
 
 				}
-				var iamgeFile = $"legacy/{word}.jpg";
 				Console.WriteLine($"Downloaded {iamgeFile}");
 
 				//await File.WriteAllBytesAsync(videoFileName, videoBytes);
 				Arvan.UploadByteArrayToS3(videoBytes , ArvanService.BUCKET_NAME , iamgeFile);
 				Console.WriteLine($"Uploaded {iamgeFile}");
+				
+				Lbl1:
 				progress.Value = ++counter;
 				
 				Title = $"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length) ,0)})%";
