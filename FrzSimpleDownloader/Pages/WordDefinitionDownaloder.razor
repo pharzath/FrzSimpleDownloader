@@ -75,32 +75,13 @@
 
 		foreach (var word in words.Skip(counter))
 		{
-			var voiceUrl = string.Format(url, word.ToLowerOrEmpty());
-			// Download and save the video file
-			byte[] voiceBytes;
-			try
-			{
-				voiceBytes = await httpClient.GetByteArrayAsync(voiceUrl);
-
-			}
-			catch (Exception e)
-			{
-				var errFile = $"error-WordDef.txt";
-				await File.AppendAllLinesAsync(errFile, new[] { word });
-
-				Console.WriteLine("************ " + e.Message);
+			if (!await DownloadWordDef(word, httpClient)) 
 				continue;
-			}
-			var voiceFileName = $"opt/{word.ToLowerOrEmpty()}/all.gz";
-			Console.WriteLine($"Downloaded {voiceFileName}");
 
-			//await File.WriteAllBytesAsync(videoFileName, videoBytes);
-			Arvan.UploadByteArrayToS3(voiceBytes, ArvanService.BUCKET_NAME, voiceFileName);
-			Console.WriteLine($"Uploaded {voiceFileName}");
 			progress.Value = ++counter;
 
 			Title = $"Total Downlaod :  {counter} of {words.Length} ({Math.Round((double)((counter * 100) / words.Length), 0)})%";
-			Msg = "Downloaded : " + voiceFileName;
+			Msg = "Downloaded : " + word;
 
 			StateHasChanged();
 
@@ -109,6 +90,33 @@
 
 
 		}
+	}
+
+	public async Task<bool> DownloadWordDef(string word, HttpClient httpClient)
+	{
+		var voiceUrl = string.Format(url, word.ToLowerOrEmpty());
+	// Download and save the video file
+		byte[] voiceBytes;
+		try
+		{
+			voiceBytes = await httpClient.GetByteArrayAsync(voiceUrl);
+		}
+		catch (Exception e)
+		{
+			var errFile = $"error-WordDef.txt";
+			await File.AppendAllLinesAsync(errFile, new[] { word });
+
+			Console.WriteLine("************ " + e.Message);
+			return false;
+		}
+
+		var voiceFileName = $"opt/{word.ToLowerOrEmpty()}/all.gz";
+		Console.WriteLine($"Downloaded {voiceFileName}");
+
+	//await File.WriteAllBytesAsync(videoFileName, videoBytes);
+		Arvan.UploadByteArrayToS3(voiceBytes, ArvanService.BUCKET_NAME, voiceFileName);
+		Console.WriteLine($"Uploaded {voiceFileName}");
+		return true;
 	}
 
 }

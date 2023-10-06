@@ -1,0 +1,45 @@
+﻿@page "/WordImagesDownloader"
+@using FrzSimpleDownloader.Services
+@using Olive
+@using System.Reflection.Emit
+@using System.Text
+@using FrzSimpleDownloader.Data
+@using Newtonsoft.Json
+
+<MudCard Elevation="2">
+	<MudCardHeader>
+		Downlaod Images
+	</MudCardHeader>
+	<MudCardContent>
+		<MudStack Spacing="2">
+			<MudProgressLinear @ref="progress" Min="0" Striped="true" Color="Color.Tertiary" Size="Size.Large"></MudProgressLinear>
+			<MudText Typo="Typo.body1">
+				@Title
+			</MudText>
+			<MudText>
+				@Msg
+			</MudText>
+		</MudStack>
+	</MudCardContent>
+	<MudCardActions>
+		<MudCheckBox @bind-Checked="CheckExistBefore" Label="Check Item Exist in bucket befor GET">
+
+		</MudCheckBox>
+		<MudButton Size="Size.Large" Color="Color.Error" OnClick="StartDownlaodClick">
+			Download Images
+		</MudButton>
+		@if (Running)
+		{
+			<MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Stop" OnClick="StopDownload">
+				Stop
+			</MudButton>
+
+		}
+	</MudCardActions>
+</MudCard>
+
+<MudText Typo="Typo.h4">
+	@Content
+</MudText>
+@code {
+}
